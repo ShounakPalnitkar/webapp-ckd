@@ -1,0 +1,1064 @@
+from flask import Flask, render_template_string, request
+from datetime import datetime
+
+app = Flask(__name__)
+
+# HTML Templates
+WELCOME_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to CKD Assessment Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f8ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .welcome-container {
+            background-color: white;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            max-width: 600px;
+        }
+        h1 {
+            color: #1a6fc9;
+            margin-bottom: 1.5rem;
+        }
+        p {
+            color: #333;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+        .btn {
+            background-color: #1a6fc9;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover {
+            background-color: #145da0;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+        }
+        .loading {
+            margin-top: 2rem;
+            font-style: italic;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <h1>Welcome to Chronic Kidney Disease Assessment Tool</h1>
+        <p>This tool will help you understand your risk factors for chronic kidney disease and provide personalized recommendations based on your health profile.</p>
+        <a href="/assessment" class="btn">Begin Assessment</a>
+        <div class="loading">Redirecting to assessment in 5 seconds...</div>
+    </div>
+
+    <script>
+        setTimeout(function() {
+            window.location.href = '/assessment';
+        }, 5000);
+    </script>
+</body>
+</html>
+"""
+
+ASSESSMENT_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronic Kidney Disease Assessment</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1a6fc9;
+            --primary-dark: #145da0;
+            --secondary-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-gray: #f5f9fc;
+            --medium-gray: #e0e6ed;
+            --dark-gray: #95a5a6;
+            --white: #ffffff;
+            --text-color: #333333;
+            --text-light: #666666;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--light-gray);
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: var(--white);
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .form-section {
+            background-color: var(--white);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: var(--primary-dark);
+            margin-top: 1.2rem;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            padding: 0.75rem 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+        
+        .symptoms-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        
+        .symptoms-container label {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem;
+            background-color: var(--light-gray);
+            border-radius: 6px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .symptoms-container label:hover {
+            background-color: var(--medium-gray);
+        }
+        
+        .symptoms-container input[type="checkbox"] {
+            margin-right: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .symptoms-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="mb-4">
+        <div class="container">
+            <h1>Chronic Kidney Disease Risk Assessment</h1>
+            <p class="lead">Complete this form to evaluate your risk factors</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <form method="POST" action="/assessment" class="form-section">
+            <h2 class="mb-4">Patient Information</h2>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="age" class="form-label">Age (years):</label>
+                    <input type="number" class="form-control" id="age" name="age" min="18" max="120" required>
+                </div>
+                
+                <div class="col-md-6">
+                    <label for="sex" class="form-label">Sex:</label>
+                    <select class="form-select" id="sex" name="sex" required>
+                        <option value="">Select...</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <label for="race" class="form-label">Race/Ethnicity:</label>
+                    <select class="form-select" id="race" name="race" required>
+                        <option value="">Select...</option>
+                        <option value="white">White/Caucasian</option>
+                        <option value="black">Black/African American</option>
+                        <option value="hispanic">Hispanic/Latino</option>
+                        <option value="asian">Asian</option>
+                        <option value="native">Native American</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <h3 class="mt-4">Medical History</h3>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="hypertension" class="form-label">Do you have hypertension (high blood pressure)?</label>
+                    <select class="form-select" id="hypertension" name="hypertension" required>
+                        <option value="">Select...</option>
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                        <option value="borderline">Borderline/Prehypertension</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6">
+                    <label for="diabetes" class="form-label">Do you have diabetes?</label>
+                    <select class="form-select" id="diabetes" name="diabetes" required>
+                        <option value="">Select...</option>
+                        <option value="no">No</option>
+                        <option value="type2">Type 2 Diabetes</option>
+                        <option value="type1">Type 1 Diabetes</option>
+                        <option value="prediabetes">Prediabetes</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <label for="duration" class="form-label">If diabetic, how many years since diagnosis?</label>
+                    <input type="number" class="form-control" id="duration" name="duration" min="0" max="100" value="0" disabled>
+                </div>
+                
+                <div class="col-md-6">
+                    <label for="family_history" class="form-label">Family history of kidney disease?</label>
+                    <select class="form-select" id="family_history" name="family_history" required>
+                        <option value="">Select...</option>
+                        <option value="no">No</option>
+                        <option value="parents">Yes (parents)</option>
+                        <option value="siblings">Yes (siblings)</option>
+                        <option value="both">Yes (parents and siblings)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="family-diseases-container" class="mt-3" style="display: none;">
+                <label class="form-label">If family history, what conditions? (Select all that apply)</label>
+                <div class="symptoms-container">
+                    <label><input type="checkbox" name="family_diseases" value="ckd"> Chronic Kidney Disease</label>
+                    <label><input type="checkbox" name="family_diseases" value="diabetes"> Diabetes</label>
+                    <label><input type="checkbox" name="family_diseases" value="hypertension"> Hypertension</label>
+                    <label><input type="checkbox" name="family_diseases" value="heart"> Heart Disease</label>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <label for="bmi" class="form-label">Body Mass Index (BMI):</label>
+                    <input type="number" class="form-control" id="bmi" name="bmi" min="15" max="60" step="0.1" required>
+                </div>
+                
+                <div class="col-md-6">
+                    <label for="smoking" class="form-label">Smoking status:</label>
+                    <select class="form-select" id="smoking" name="smoking" required>
+                        <option value="">Select...</option>
+                        <option value="never">Never smoked</option>
+                        <option value="former">Former smoker</option>
+                        <option value="current">Current smoker</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <label for="cardiovascular" class="form-label">History of cardiovascular disease?</label>
+                    <select class="form-select" id="cardiovascular" name="cardiovascular" required>
+                        <option value="">Select...</option>
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                    </select>
+                </div>
+            </div>
+            
+            <h3 class="mt-4">Symptoms (Check all that apply)</h3>
+            
+            <div class="symptoms-container">
+                <label><input type="checkbox" name="symptoms" value="fatigue"> Fatigue or weakness</label>
+                <label><input type="checkbox" name="symptoms" value="swelling"> Swelling in feet/ankles</label>
+                <label><input type="checkbox" name="symptoms" value="shortness"> Shortness of breath</label>
+                <label><input type="checkbox" name="symptoms" value="appetite"> Poor appetite</label>
+                <label><input type="checkbox" name="symptoms" value="sleep"> Trouble sleeping</label>
+                <label><input type="checkbox" name="symptoms" value="urination"> Changes in urination</label>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Calculate My CKD Risk</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('diabetes').addEventListener('change', function() {
+            const durationField = document.getElementById('duration');
+            if (this.value === 'type1' || this.value === 'type2') {
+                durationField.disabled = false;
+                durationField.required = true;
+            } else {
+                durationField.disabled = true;
+                durationField.required = false;
+                durationField.value = '0';
+            }
+        });
+        
+        document.getElementById('family_history').addEventListener('change', function() {
+            const container = document.getElementById('family-diseases-container');
+            if (this.value !== 'no') {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+                document.querySelectorAll('input[name="family_diseases"]').forEach(el => el.checked = false);
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+"""
+
+RESULTS_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your CKD Risk Assessment Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-gauge@0.3.0/dist/chartjs-gauge.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #1a6fc9;
+            --primary-dark: #145da0;
+            --secondary-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-gray: #f5f9fc;
+            --medium-gray: #e0e6ed;
+            --dark-gray: #95a5a6;
+            --white: #ffffff;
+            --text-color: #333333;
+            --text-light: #666666;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--light-gray);
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: var(--white);
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .result-section {
+            background-color: var(--white);
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+        }
+        
+        .risk-high {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+        
+        .risk-medium {
+            color: var(--warning-color);
+            font-weight: bold;
+        }
+        
+        .risk-low {
+            color: var(--secondary-color);
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            margin: 2rem 0;
+        }
+        
+        .risk-factor {
+            background-color: #e8f4fc;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            display: inline-block;
+            margin: 0.3rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .risk-factor.high {
+            background-color: #fde8e8;
+            color: var(--danger-color);
+            border-left: 4px solid var(--danger-color);
+        }
+        
+        .risk-factor.medium {
+            background-color: #fef5e8;
+            color: var(--warning-color);
+            border-left: 4px solid var(--warning-color);
+        }
+        
+        .risk-factor.low {
+            background-color: #e8f8f0;
+            color: var(--secondary-color);
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .progress-container {
+            width: 100%;
+            background-color: var(--medium-gray);
+            border-radius: 10px;
+            margin: 1rem 0;
+            height: 20px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            border-radius: 10px;
+        }
+        
+        .ckd-stage {
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background-color: rgba(26, 111, 201, 0.05);
+        }
+        
+        .ckd-stage h5 {
+            color: var(--primary-color);
+        }
+        
+        .alert-urgent {
+            border-left: 4px solid var(--danger-color);
+        }
+        
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="mb-4">
+        <div class="container">
+            <h1>Your CKD Risk Assessment Results</h1>
+            <p class="lead">Generated on {{ current_date }}</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="result-section">
+            <h2 class="mb-4">Risk Summary</h2>
+            
+            <div class="alert alert-{% if risk_level == 'high' %}danger{% elif risk_level == 'moderate' %}warning{% else %}success{% endif %}">
+                <h4 class="alert-heading">
+                    Your calculated CKD risk score: <strong>{{ risk_score }}/20</strong>
+                </h4>
+                <p>
+                    Risk level: <span class="risk-{{ risk_level }}">{{ risk_level|upper }}</span>
+                </p>
+                <p>
+                    Estimated 5-year risk of developing CKD: {{ risk_percentage }}
+                </p>
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: {{ (risk_score / 20) * 100 }}%; background-color: {% if risk_level == 'high' %}#e74c3c{% elif risk_level == 'moderate' %}#f39c12{% else %}#27ae60{% endif %}"></div>
+                </div>
+                {% if immediate_visit %}
+                <hr>
+                <p class="mb-0"><strong>Recommendation:</strong> Based on your risk factors, we recommend consulting a healthcare professional as soon as possible.</p>
+                {% endif %}
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="riskGaugeChart"></canvas>
+            </div>
+            
+            <h3 class="mt-4">Key Risk Factors Identified:</h3>
+            <div class="mb-4">
+                {% for factor in risk_factors if factor.value > 0 %}
+                <div class="risk-factor {% if (factor.value / factor.max) >= 0.75 %}high{% elif (factor.value / factor.max) >= 0.5 %}medium{% else %}low{% endif %}">
+                    {{ factor.name }} ({{ factor.value }}/{{ factor.max }} pts)
+                    {% if factor.details %}<br><small>{{ factor.details }}</small>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        {% if immediate_visit %}
+        <div class="result-section alert-urgent">
+            <h3 class="text-danger">🚨 Immediate Attention Recommended</h3>
+            <p>Based on your risk factors, we strongly recommend consulting with a healthcare professional as soon as possible.</p>
+            <div class="alert alert-danger">
+                <h4>Recommended Specialist:</h4>
+                <p><strong>{{ specialist.type }}</strong></p>
+                <p>Reason: {{ specialist.reason }}</p>
+                <p>Urgency: {{ specialist.urgency }}</p>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="result-section">
+            <h2 class="mb-4">Personalized Recommendations</h2>
+            <ul class="list-group mb-4">
+                {% for recommendation in recommendations %}
+                <li class="list-group-item">{{ recommendation }}</li>
+                {% endfor %}
+            </ul>
+            
+            <h3 class="mt-4">Next Steps</h3>
+            <div class="alert alert-primary">
+                <p>Based on your assessment, we recommend:</p>
+                <ol>
+                    <li>Review these results with your healthcare provider</li>
+                    <li>Ask about kidney function tests (eGFR and urine albumin)</li>
+                    <li>Implement the lifestyle recommendations provided</li>
+                    <li>Follow up regularly to monitor your kidney health</li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="result-section">
+            <h2 class="mb-4">Understanding Chronic Kidney Disease</h2>
+            <p>CKD progresses through stages based on kidney function (measured by GFR - glomerular filtration rate). Here's what you should know:</p>
+            
+            {% for stage in ckd_education %}
+            <div class="ckd-stage">
+                <h5>Stage {{ stage.stage }} (GFR: {{ stage.gfr }})</h5>
+                <p>{{ stage.description }}</p>
+                <p><strong>Action:</strong> {{ stage.action }}</p>
+            </div>
+            {% endfor %}
+            
+            <div class="alert alert-info mt-4">
+                <h4>When to See a Specialist</h4>
+                <p>Consider seeing a nephrologist (kidney specialist) if:</p>
+                <ul>
+                    <li>Your GFR is below 60 (Stages 3-5)</li>
+                    <li>You have persistent protein in your urine</li>
+                    <li>Your kidney function is declining rapidly</li>
+                    <li>You have multiple risk factors as identified in this assessment</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="result-section">
+            <h2 class="mb-4">Risk Factor Breakdown</h2>
+            <div class="chart-container">
+                <canvas id="factorsChart"></canvas>
+            </div>
+            <p class="text-muted mt-2">This chart shows how each factor contributes to your overall risk score.</p>
+        </div>
+        
+        <div class="result-section">
+            <h2 class="mb-4">Age Comparison</h2>
+            <div class="chart-container">
+                <canvas id="ageComparisonChart"></canvas>
+            </div>
+            <p class="text-muted mt-2">See how your risk compares to others in your age group.</p>
+        </div>
+        
+        <div class="text-center mb-4">
+            <a href="/assessment" class="btn btn-primary">Start New Assessment</a>
+        </div>
+    </div>
+
+    <script>
+        // Risk Gauge Chart
+        const gaugeCtx = document.getElementById('riskGaugeChart').getContext('2d');
+        const gaugeChart = new Chart(gaugeCtx, {
+            type: 'gauge',
+            data: {
+                labels: ['Low', 'Moderate', 'High'],
+                datasets: [{
+                    value: {{ risk_score }},
+                    minValue: 0,
+                    maxValue: 20,
+                    data: [5, 9, 20], // Thresholds for low/moderate/high
+                    backgroundColor: ['#27ae60', '#f39c12', '#e74c3c'],
+                }]
+            },
+            options: {
+                responsive: true,
+                title: {
+                    display: true,
+                    text: 'Your CKD Risk Level',
+                    fontSize: 18
+                },
+                needle: {
+                    radiusPercentage: 2,
+                    widthPercentage: 3.2,
+                    lengthPercentage: 80,
+                    color: 'rgba(0, 0, 0, 1)'
+                },
+                valueLabel: {
+                    display: true,
+                    formatter: (value) => {
+                        return value + '/20';
+                    },
+                    color: 'rgba(0, 0, 0, 1)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                    borderRadius: 5,
+                    padding: {
+                        top: 5,
+                        bottom: 5,
+                        left: 10,
+                        right: 10
+                    },
+                    fontSize: 24,
+                    fontStyle: 'bold'
+                }
+            }
+        });
+        
+        // Factors Chart
+        const factorsCtx = document.getElementById('factorsChart').getContext('2d');
+        const contributingFactors = [
+            {% for factor in risk_factors if factor.value > 0 %}
+            {
+                name: '{{ factor.name }}',
+                value: {{ factor.value }},
+                max: {{ factor.max }}
+            },
+            {% endfor %}
+        ];
+        
+        const displayFactors = contributingFactors.slice(0, 6);
+        const factorsChart = new Chart(factorsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: displayFactors.map(f => f.name),
+                datasets: [{
+                    data: displayFactors.map(f => f.value),
+                    backgroundColor: [
+                        '#1a6fc9', '#27ae60', '#f39c12', '#e74c3c', '#9b59b6', '#3498db'
+                    ],
+                    borderColor: '#fff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Top Contributing Risk Factors',
+                        font: {
+                            size: 16
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.raw;
+                                const total = displayFactors.reduce((sum, f) => sum + f.value, 0);
+                                const percentage = Math.round((value / total) * 100);
+                                return `${context.label}: ${value} pts (${percentage}%)`;
+                            }
+                        }
+                    },
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            padding: 15,
+                            usePointStyle: true,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Age Comparison Chart
+        const ageCtx = document.getElementById('ageComparisonChart').getContext('2d');
+        let userAgeGroup;
+        if ({{ age }} < 40) userAgeGroup = 0;
+        else if ({{ age }} < 50) userAgeGroup = 1;
+        else if ({{ age }} < 60) userAgeGroup = 2;
+        else userAgeGroup = 3;
+        
+        const ageChart = new Chart(ageCtx, {
+            type: 'line',
+            data: {
+                labels: ['<40', '40-49', '50-59', '60+'],
+                datasets: [{
+                    label: 'Average Risk Score by Age',
+                    data: [2, 4, 6, 9],
+                    borderColor: '#95a5a6',
+                    backgroundColor: 'rgba(149, 165, 166, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointBackgroundColor: '#95a5a6',
+                    pointRadius: 5,
+                    fill: true
+                }, {
+                    label: 'Your Score',
+                    data: Array(4).fill(null).map((_, i) => i === userAgeGroup ? {{ risk_score }} : null),
+                    borderColor: '#1a6fc9',
+                    backgroundColor: '#1a6fc9',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#1a6fc9',
+                    pointRadius: 7,
+                    pointHoverRadius: 9
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'How Your Risk Compares to Others Your Age',
+                        font: {
+                            size: 16
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (context.datasetIndex === 0) {
+                                    return `Average score: ${context.raw}`;
+                                } else {
+                                    return `Your score: ${context.raw}`;
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 15,
+                        title: {
+                            display: true,
+                            text: 'Risk Score'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Age Group'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+"""
+
+# Helper functions
+def generate_recommendations(risk_level, risk_factors, age, sex):
+    recommendations = []
+    
+    if risk_level == 'high':
+        recommendations.append("Consult with your doctor about kidney function tests (eGFR and urine albumin)")
+        recommendations.append("Strict control of blood pressure (target <130/80 mmHg if diabetic or CKD present)")
+        recommendations.append("Optimal diabetes management if applicable (target A1C <7% for most patients)")
+        recommendations.append("Regular monitoring of kidney function (at least annually)")
+        recommendations.append("Dietary modifications (reduce sodium, moderate protein intake)")
+    elif risk_level == 'moderate':
+        recommendations.append("Discuss kidney health with your doctor at your next visit")
+        recommendations.append("Monitor and control blood pressure")
+        recommendations.append("Manage diabetes carefully if applicable")
+        recommendations.append("Consider annual kidney function screening if you have multiple risk factors")
+    else:
+        recommendations.append("Maintain a healthy blood pressure (<120/80 mmHg ideal)")
+        recommendations.append("Stay hydrated and eat a balanced diet")
+        recommendations.append("Exercise regularly")
+    
+    for factor in risk_factors:
+        if factor['value'] > 0:
+            if factor['name'] == 'Current smoker':
+                recommendations.append("Quit smoking to reduce kidney disease risk")
+            elif factor['name'].startswith('Obesity'):
+                recommendations.append("Work on weight management through diet and exercise")
+            elif factor['name'] == 'Family history' and factor.get('details'):
+                recommendations.append(f"Be aware of family history of {factor['details']} and discuss screening options")
+    
+    if age >= 50:
+        recommendations.append("Annual kidney function tests recommended due to age")
+    
+    if sex == 'male':
+        recommendations.append("Men should be particularly vigilant about blood pressure control")
+    
+    return recommendations
+
+def get_ckd_education():
+    return [
+        {
+            'stage': '1',
+            'description': 'Normal kidney function but with signs of kidney damage',
+            'gfr': '90+',
+            'action': 'Monitor and control blood pressure, manage diabetes if present'
+        },
+        {
+            'stage': '2',
+            'description': 'Mild loss of kidney function',
+            'gfr': '60-89',
+            'action': 'Regular checkups, lifestyle changes'
+        },
+        {
+            'stage': '3',
+            'description': 'Moderate loss of kidney function',
+            'gfr': '30-59',
+            'action': 'See a nephrologist, manage complications'
+        },
+        {
+            'stage': '4',
+            'description': 'Severe loss of kidney function',
+            'gfr': '15-29',
+            'action': 'Prepare for kidney failure treatment options'
+        },
+        {
+            'stage': '5',
+            'description': 'Kidney failure',
+            'gfr': '<15',
+            'action': 'Dialysis or kidney transplant needed'
+        }
+    ]
+
+def get_specialist_recommendation(symptoms, risk_level):
+    if risk_level == 'high' and symptoms >= 3:
+        return {
+            'type': 'Nephrologist (Kidney Specialist)',
+            'reason': 'You have multiple symptoms and high risk factors for kidney disease',
+            'urgency': 'Schedule an appointment within 1-2 weeks'
+        }
+    elif symptoms >= 2:
+        return {
+            'type': 'Primary Care Physician',
+            'reason': 'You have some symptoms that should be evaluated',
+            'urgency': 'Schedule an appointment soon'
+        }
+    else:
+        return {
+            'type': 'Primary Care Physician',
+            'reason': 'Regular checkup recommended based on your risk factors',
+            'urgency': 'Next routine visit'
+        }
+
+# Routes
+@app.route('/')
+def welcome():
+    return render_template_string(WELCOME_TEMPLATE)
+
+@app.route('/assessment', methods=['GET', 'POST'])
+def assessment():
+    if request.method == 'POST':
+        form_data = request.form
+        risk_data = calculate_risk(form_data)
+        return render_template_string(RESULTS_TEMPLATE, **risk_data)
+    return render_template_string(ASSESSMENT_TEMPLATE)
+
+def calculate_risk(form_data):
+    age = int(form_data.get('age', 0))
+    sex = form_data.get('sex', '')
+    race = form_data.get('race', '')
+    hypertension = form_data.get('hypertension', 'no')
+    diabetes = form_data.get('diabetes', 'no')
+    duration = int(form_data.get('duration', 0))
+    family_history = form_data.get('family_history', 'no')
+    family_diseases = form_data.getlist('family_diseases')
+    bmi = float(form_data.get('bmi', 0))
+    smoking = form_data.get('smoking', 'never')
+    cardiovascular = form_data.get('cardiovascular', 'no')
+    symptoms = len(form_data.getlist('symptoms'))
+
+    risk_score = 0
+    risk_factors = []
+
+    # Age points
+    if age >= 60:
+        risk_score += 3
+        risk_factors.append({'name': 'Age (60+)', 'value': 3, 'max': 3})
+    elif age >= 50:
+        risk_score += 2
+        risk_factors.append({'name': 'Age (50-59)', 'value': 2, 'max': 3})
+    elif age >= 40:
+        risk_score += 1
+        risk_factors.append({'name': 'Age (40-49)', 'value': 1, 'max': 3})
+    else:
+        risk_factors.append({'name': 'Age (<40)', 'value': 0, 'max': 3})
+
+    # Race points
+    if race == 'black':
+        risk_score += 1
+        risk_factors.append({'name': 'African American', 'value': 1, 'max': 1})
+    else:
+        risk_factors.append({'name': 'Race/ethnicity', 'value': 0, 'max': 1})
+
+    # Hypertension points
+    if hypertension == 'yes':
+        risk_score += 2
+        risk_factors.append({'name': 'Hypertension', 'value': 2, 'max': 2})
+    elif hypertension == 'borderline':
+        risk_score += 1
+        risk_factors.append({'name': 'Borderline hypertension', 'value': 1, 'max': 2})
+    else:
+        risk_factors.append({'name': 'No hypertension', 'value': 0, 'max': 2})
+
+    # Diabetes points
+    if diabetes == 'type2':
+        risk_score += 3
+        risk_factors.append({'name': 'Type 2 Diabetes', 'value': 3, 'max': 4})
+    elif diabetes == 'type1':
+        risk_score += 4
+        risk_factors.append({'name': 'Type 1 Diabetes', 'value': 4, 'max': 4})
+    elif diabetes == 'prediabetes':
+        risk_score += 1
+        risk_factors.append({'name': 'Prediabetes', 'value': 1, 'max': 4})
+    else:
+        risk_factors.append({'name': 'No diabetes', 'value': 0, 'max': 4})
+
+    # Diabetes duration points
+    if duration >= 10:
+        risk_score += 2
+        risk_factors.append({'name': 'Diabetes duration (10+ yrs)', 'value': 2, 'max': 2})
+    elif duration >= 5:
+        risk_score += 1
+        risk_factors.append({'name': 'Diabetes duration (5-9 yrs)', 'value': 1, 'max': 2})
+    elif duration > 0:
+        risk_factors.append({'name': 'Diabetes duration (<5 yrs)', 'value': 0, 'max': 2})
+
+    # Family history points
+    family_history_points = 0
+    if family_history == 'parents' or family_history == 'siblings':
+        family_history_points = 1
+    elif family_history == 'both':
+        family_history_points = 2
+
+    risk_score += family_history_points
+    family_diseases_text = ', '.join([d.replace('ckd', 'Chronic Kidney Disease')
+                                    .replace('diabetes', 'Diabetes')
+                                    .replace('hypertension', 'Hypertension')
+                                    .replace('heart', 'Heart Disease') 
+                                    for d in family_diseases])
+    
+    risk_factors.append({
+        'name': 'Family history',
+        'value': family_history_points,
+        'max': 2,
+        'details': family_diseases_text
+    })
+
+    # BMI points
+    if bmi >= 30:
+        risk_score += 1
+        risk_factors.append({'name': 'Obesity (BMI ≥30)', 'value': 1, 'max': 1})
+    elif bmi >= 25:
+        risk_factors.append({'name': 'Overweight (BMI 25-29.9)', 'value': 0, 'max': 1})
+    else:
+        risk_factors.append({'name': 'Normal weight', 'value': 0, 'max': 1})
+
+    # Smoking points
+    if smoking == 'current':
+        risk_score += 1
+        risk_factors.append({'name': 'Current smoker', 'value': 1, 'max': 1})
+    elif smoking == 'former':
+        risk_factors.append({'name': 'Former smoker', 'value': 0, 'max': 1})
+    else:
+        risk_factors.append({'name': 'Never smoked', 'value': 0, 'max': 1})
+
+    # Cardiovascular disease points
+    if cardiovascular == 'yes':
+        risk_score += 1
+        risk_factors.append({'name': 'Cardiovascular disease', 'value': 1, 'max': 1})
+    else:
+        risk_factors.append({'name': 'No cardiovascular disease', 'value': 0, 'max': 1})
+
+    # Symptoms points
+    if symptoms >= 3:
+        risk_score += 2
+        risk_factors.append({'name': 'Multiple symptoms', 'value': 2, 'max': 2})
+    elif symptoms >= 1:
+        risk_score += 1
+        risk_factors.append({'name': 'Some symptoms', 'value': 1, 'max': 2})
+    else:
+        risk_factors.append({'name': 'No symptoms', 'value': 0, 'max': 2})
+
+    # Determine risk level
+    if risk_score >= 10:
+        risk_level = 'high'
+        risk_percentage = '20-50%'
+    elif risk_score >= 6:
+        risk_level = 'moderate'
+        risk_percentage = '5-20%'
+    else:
+        risk_level = 'low'
+        risk_percentage = '<5%'
+
+    recommendations = generate_recommendations(risk_level, risk_factors, age, sex)
+    immediate_visit = any(factor['name'] in [
+        'Type 1 Diabetes', 'Type 2 Diabetes', 'Hypertension', 
+        'Cardiovascular disease', 'Multiple symptoms'
+    ] and factor['value'] > 0 for factor in risk_factors)
+
+    ckd_education = get_ckd_education()
+    specialist = get_specialist_recommendation(symptoms, risk_level)
+
+    return {
+        'risk_score': risk_score,
+        'risk_level': risk_level,
+        'risk_percentage': risk_percentage,
+        'risk_factors': risk_factors,
+        'age': age,
+        'sex': sex,
+        'race': race,
+        'hypertension': hypertension,
+        'diabetes': diabetes,
+        'duration': duration,
+        'family_history': family_history,
+        'family_diseases_text': family_diseases_text,
+        'bmi': bmi,
+        'smoking': smoking,
+        'cardiovascular': cardiovascular,
+        'symptoms': symptoms,
+        'recommendations': recommendations,
+        'immediate_visit': immediate_visit,
+        'ckd_education': ckd_education,
+        'specialist': specialist,
+        'current_date': datetime.now().strftime('%B %d, %Y')
+    }
+
+if __name__ == '__main__':
+    app.run(debug=True)
